@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE struts PUBLIC
+        "-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"
+        "http://struts.apache.org/dtds/struts-2.3.dtd">
+
+<struts>
+    <constant name="struts.custom.i18n.resources" value="config" />
+
+    <package name="com.shuai" extends="struts-default">
+        <action name="key" class="com.shuai.action.Actions" method="exchangeKey">
+            <interceptor-ref name="fileUpload"/>
+            <interceptor-ref name="basicStack"/>
+            <result name="success" type="stream">
+                <param name="contentType">text/html</param>
+                <param name="inputName">keyInputStream</param>
+            </result>
+            <result name="error" >keyerror.jsp</result>
+        </action>
+
+        <action name="push" class="com.shuai.action.Actions" method="pushData">
+            <interceptor-ref name="fileUpload"/>
+            <interceptor-ref name="basicStack"/>
+            <result name="success"  >pushDatasuccess.jsp</result>
+            <result name="error" >pushDataerror.jsp</result>
+        </action>
+
+
+        <action name="pull" class="com.shuai.action.Actions" method="pullData">
+            <result type="stream">
+                <param name="contentType">text/html</param>
+                <param name="inputName">dataInputStream</param>
+            </result>
+        </action>
+
+        <action name="login" class="com.shuai.action.Actions">
+            <result name="success"  >loginsuccess.jsp</result>
+            <result name="error" >loginerror.jsp</result>
+        </action>
+
+        <action name="chkname" class="com.shuai.action.Actions" method="chkName">
+            <result name="success"  >chknamesuccess.jsp</result>
+            <result name="error" >chknameerror.jsp</result>
+        </action>
+
+        <action name="logout" class="com.shuai.action.Actions" method="logout">
+            <result name="success" >logoutsuccess.jsp</result>
+            <result name="error" >logouterror.jsp</result>
+        </action>
+
+        <action name="register" class="com.shuai.action.Actions" method="register">
+            <result name="success" >registersuccess.jsp</result>
+            <result name="error" >registererror.jsp</result>
+        </action>
+
+    </package>
+
+</struts>

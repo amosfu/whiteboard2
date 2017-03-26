@@ -1,0 +1,19 @@
+package com.shuai.bean;
+
+/**
+ * Created by Amos on 2017-03-19.
+ */
+public class KeyTransfer {
+    private byte[] key;
+
+    public KeyTransfer() {
+    }
+
+    public KeyTransfer(byte[] key) {
+        this.key = key;
+    }
+
+    public byte[] getKey() {
+        return key;
+    }
+}
