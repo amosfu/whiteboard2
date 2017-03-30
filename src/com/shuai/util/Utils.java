@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.crypto.Cipher;
 import javax.crypto.spec.DHParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
@@ -49,65 +47,6 @@ public class Utils {
             e.printStackTrace();
         }
         return c;
-    }
-
-    public static byte[] encryptJsonObject(Object input, byte[] key){
-        byte[] encrypted = null;
-        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-        try {
-            String json = ow.writeValueAsString(input);
-            MessageDigest sha3 = MessageDigest.getInstance("SHA-256");
-            // generate 256bit AES key
-            byte[] digestedKey = sha3.digest(key);
-            SecretKeySpec secretKeySpec = new SecretKeySpec(shortenSecretKey(digestedKey, 128), "AES");
-            Cipher cipher = Cipher.getInstance("AES");
-            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-            encrypted = cipher.doFinal(json.getBytes());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return encrypted;
-    }
-    public static <T> T decryptJsonObject(byte[] input, byte[] key, Class<T> outputClass){
-        T decryptedObject = null;
-        try {
-            MessageDigest sha3 = MessageDigest.getInstance("SHA-256");
-            // generate 256bit AES key
-            byte[] digestedKey = sha3.digest(key);
-            SecretKeySpec secretKeySpec = new SecretKeySpec(shortenSecretKey(digestedKey, 128), "AES");
-            Cipher cipher = Cipher.getInstance("AES");
-            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
-
-            String json = new String(cipher.doFinal(input));
-            decryptedObject = new ObjectMapper().readValue(json, outputClass);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return decryptedObject;
-    }
-    /**
-     * 1024 bit symmetric key size is so big for DES so we must shorten the key size. You can get first 8 longKey of the
-     * byte array or can use a key factory
-     *
-     * @param longKey
-     * @return
-     */
-    public static byte[] shortenSecretKey(final byte[] longKey, int newKeyLength) {
-        try {
-            // Use 8 bytes (64 bits) for DES, 6 bytes (48 bits) for Blowfish
-            final byte[] shortenedKey = new byte[newKeyLength / 8];
-            System.arraycopy(longKey, 0, shortenedKey, 0, shortenedKey.length);
-            return shortenedKey;
-
-            // Below lines can be more secure
-            // final SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("DES");
-            // final DESKeySpec       desSpec    = new DESKeySpec(longKey);
-            //
-            // return keyFactory.generateSecret(desSpec).getEncoded();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 
     public static String getSHA256SecurePassword(String passwordToHash, String salt)
