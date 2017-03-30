@@ -8,12 +8,22 @@
     <constant name="struts.custom.i18n.resources" value="config" />
 
     <package name="com.shuai" extends="struts-default">
-        <action name="key" class="com.shuai.action.Actions" method="exchangeKey">
+        <action name="key" class="com.shuai.action.Actions" method="publishPK">
             <interceptor-ref name="fileUpload"/>
             <interceptor-ref name="basicStack"/>
             <result name="success" type="stream">
                 <param name="contentType">text/html</param>
                 <param name="inputName">keyInputStream</param>
+            </result>
+            <result name="error" >keyerror.jsp</result>
+        </action>
+
+        <action name="follow" class="com.shuai.action.Actions" method="follow">
+            <interceptor-ref name="fileUpload"/>
+            <interceptor-ref name="basicStack"/>
+            <result name="success" type="stream">
+                <param name="contentType">text/html</param>
+                <param name="inputName">followInputStream</param>
             </result>
             <result name="error" >keyerror.jsp</result>
         </action>

@@ -5,22 +5,22 @@ package com.shuai.action;
  */
 
 import com.opensymphony.xwork2.ActionSupport;
-import com.shuai.bean.GpsTransfer;
-import com.shuai.bean.KeyObject;
 import com.shuai.dao.UserDao;
 import com.shuai.util.Utils;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.map.PassiveExpiringMap;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.struts2.dispatcher.SessionMap;
 import org.apache.struts2.interceptor.SessionAware;
 
-import java.io.*;
-import java.security.MessageDigest;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 
 public class Actions extends ActionSupport implements SessionAware {
@@ -33,7 +33,7 @@ public class Actions extends ActionSupport implements SessionAware {
 
     private UserDao userDao = new UserDao("jdbc:mysql://" + dbHost + ":" + dbPort + "/" + dbName, dbUser, dbPwd);
 
-    private String username, userpass, key, fetchId;
+    private String username, userpass;
     private SessionMap<String, String> sessionmap;
 
     public String getUsername() {
@@ -52,31 +52,10 @@ public class Actions extends ActionSupport implements SessionAware {
         this.userpass = userpass;
     }
 
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getFetchId() {
-        return fetchId;
-    }
-
-    public void setFetchId(String fetchId) {
-        this.fetchId = fetchId;
-    }
-
-    // KeyObject map
-    private static Map<String, KeyObject> KEY_OBJECT_MAP = new ConcurrentHashMap<>();
-
     public String execute() throws Exception {
         if (userDao.login(username, userpass)) {
             sessionmap.put("login", "true");
             sessionmap.put("id", username);
-            // use password as shared secret for DH-EKE key encryption
-            KEY_OBJECT_MAP.put(username, new KeyObject(userpass));
             return ActionSupport.SUCCESS;
         } else {
             return ActionSupport.ERROR;
@@ -95,6 +74,39 @@ public class Actions extends ActionSupport implements SessionAware {
     private File dataUpload;
     private String dataUploadContentType;
     private String dataUploadFileName;
+
+    private File followUpload;
+    private String followUploadContentType;
+    private String followUploadFileName;
+    private InputStream followInputStream;
+
+    public InputStream getFollowInputStream() {
+        return followInputStream;
+    }
+
+    public File getFollowUpload() {
+        return followUpload;
+    }
+
+    public void setFollowUpload(File followUpload) {
+        this.followUpload = followUpload;
+    }
+
+    public String getFollowUploadContentType() {
+        return followUploadContentType;
+    }
+
+    public void setFollowUploadContentType(String followUploadContentType) {
+        this.followUploadContentType = followUploadContentType;
+    }
+
+    public String getFollowUploadFileName() {
+        return followUploadFileName;
+    }
+
+    public void setFollowUploadFileName(String followUploadFileName) {
+        this.followUploadFileName = followUploadFileName;
+    }
 
     public File getKeyUpload() {
         return keyUpload;
@@ -144,13 +156,53 @@ public class Actions extends ActionSupport implements SessionAware {
         this.dataUploadFileName = dataUploadFileName;
     }
 
-    public String exchangeKey() throws Exception {
-        if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
-            KeyObject keyObject = KEY_OBJECT_MAP.get(sessionmap.get("id"));
-            byte[] receivedBytes = IOUtils.toByteArray(new FileInputStream(keyUpload));
-            keyObject.parseKeyExchangeMsg(receivedBytes);
+    // auto-expiring map , TTL = 60s
+    private static Map<String, byte[]> PUBLISHED_PK = new PassiveExpiringMap<String, byte[]>
+            (new PassiveExpiringMap.ConstantTimeToLiveExpirationPolicy<String, byte[]>(60 * 1000), new LinkedHashMap<String, byte[]>());
+    // auto-expiring map , TTL = 60s
+    private static Map<String, Map<String, String>> FOLLOW_PUBLISHED_PK = new PassiveExpiringMap<String, Map<String, String>>
+            (new PassiveExpiringMap.ConstantTimeToLiveExpirationPolicy<String, Map<String, String>>(60 * 1000), new LinkedHashMap<String, Map<String, String>>());
 
-            keyInputStream = new ByteArrayInputStream(keyObject.generateKeyExchangeMsg());
+    public String publishPK() throws Exception {
+        if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
+            byte[] receivedBytes = IOUtils.toByteArray(new FileInputStream(keyUpload));
+            synchronized (PUBLISHED_PK) {
+                PUBLISHED_PK.put(sessionmap.get("id"), receivedBytes);
+            }
+            byte[] keyMapJson = new byte[]{};
+            synchronized (FOLLOW_PUBLISHED_PK) {
+                keyMapJson = Utils.encodeObjectToJson(FOLLOW_PUBLISHED_PK.get(sessionmap.get("id")));
+            }
+            keyInputStream = new ByteArrayInputStream(keyMapJson);
+            return ActionSupport.SUCCESS;
+        } else {
+            return ActionSupport.ERROR;
+        }
+    }
+
+    public String follow() throws Exception {
+        if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
+            byte[] receivedBytes = IOUtils.toByteArray(new FileInputStream(followUpload));
+            Map<String, String> followKeyMap = (Map<String, String>) Utils.decodeJsonToObject(receivedBytes, Map.class);
+            Map<String, String> publishedKeyMap = new LinkedHashMap<>();
+            for (String idToFollow : followKeyMap.keySet()) {
+                //output: published key map
+                synchronized (PUBLISHED_PK) {
+                    if (PUBLISHED_PK.get(idToFollow) != null) {
+                        publishedKeyMap.put(idToFollow, Base64.encodeBase64String(PUBLISHED_PK.get(idToFollow))); //encode before Json
+                    }
+                }
+                //input follow up key map
+                synchronized (FOLLOW_PUBLISHED_PK) {
+                    Map<String, String> individualMap = FOLLOW_PUBLISHED_PK.get(idToFollow);
+                    if (individualMap == null) {
+                        individualMap = new LinkedHashMap<>();
+                        FOLLOW_PUBLISHED_PK.put(idToFollow, individualMap);
+                    }
+                    individualMap.put(sessionmap.get("id"), followKeyMap.get(idToFollow));
+                }
+            }
+            followInputStream = new ByteArrayInputStream(Utils.encodeObjectToJson(publishedKeyMap));
             return ActionSupport.SUCCESS;
         } else {
             return ActionSupport.ERROR;
@@ -158,18 +210,23 @@ public class Actions extends ActionSupport implements SessionAware {
     }
 
     // auto-expiring map , TTL = 60s
-    private static Map<String, byte[]> GPS_TRANSFER_OBJECT_MAP = new PassiveExpiringMap<>
-            (new PassiveExpiringMap.ConstantTimeToLiveExpirationPolicy<String, byte[]>(60 * 1000), new ConcurrentHashMap<String, byte[]>());
+    private static Map<String, Map<String, String>> GPS_TRANSFER_OBJECT_MAP = new PassiveExpiringMap<String, Map<String, String>>
+            (new PassiveExpiringMap.ConstantTimeToLiveExpirationPolicy<String, Map<String, String>>(60 * 1000), new LinkedHashMap<String, Map<String, String>>());
 
     public String pushData() throws Exception {
         if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
-            KeyObject keyObject = KEY_OBJECT_MAP.get(sessionmap.get("id"));
             byte[] receivedBytes = IOUtils.toByteArray(new FileInputStream(dataUpload));
-
-            Byte[] GPSCipher = Utils.decryptJsonObject(receivedBytes, keyObject.getSecretKey(), Byte[].class);
-
-            GPS_TRANSFER_OBJECT_MAP.put(sessionmap.get("id"), ArrayUtils.toPrimitive(GPSCipher));
-
+            Map<String, String> dataMap = (Map<String, String>) Utils.decodeJsonToObject(receivedBytes, Map.class);
+            for (String pushToId : dataMap.keySet()) {
+                synchronized (GPS_TRANSFER_OBJECT_MAP) {
+                    Map<String, String> individualPushData = GPS_TRANSFER_OBJECT_MAP.get(pushToId);
+                    if (individualPushData == null) {
+                        individualPushData = new LinkedHashMap<>();
+                        GPS_TRANSFER_OBJECT_MAP.put(pushToId, individualPushData);
+                    }
+                    individualPushData.put(sessionmap.get("id"), dataMap.get(pushToId));
+                }
+            }
             return ActionSupport.SUCCESS;
         } else {
             return ActionSupport.ERROR;
@@ -184,14 +241,12 @@ public class Actions extends ActionSupport implements SessionAware {
 
     public String pullData() throws Exception {
         if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
-            byte[] GPSCipher = GPS_TRANSFER_OBJECT_MAP.get(fetchId);
-            if (GPSCipher == null || ArrayUtils.isEmpty(GPSCipher)) {
-                GPSCipher = new byte[]{};
+            byte[] keyMapJson = new byte[]{};
+            synchronized (GPS_TRANSFER_OBJECT_MAP) {
+                keyMapJson = Utils.encodeObjectToJson(GPS_TRANSFER_OBJECT_MAP.get(sessionmap.get("id")));
             }
-            KeyObject keyObject = KEY_OBJECT_MAP.get(sessionmap.get("id"));
-            dataInputStream = new ByteArrayInputStream(Utils.encryptJsonObject(GPSCipher, keyObject.getSecretKey()));
+            dataInputStream = new ByteArrayInputStream(keyMapJson);
             return ActionSupport.SUCCESS;
-
         } else {
             return ActionSupport.ERROR;
         }
@@ -207,7 +262,6 @@ public class Actions extends ActionSupport implements SessionAware {
 
     public String logout() {
         if ("true".equalsIgnoreCase(sessionmap.get("login"))) {
-            KEY_OBJECT_MAP.remove(sessionmap.get("id"));
             sessionmap.invalidate();
             return ActionSupport.SUCCESS;
         } else {
@@ -223,7 +277,6 @@ public class Actions extends ActionSupport implements SessionAware {
             sessionmap.put("login", "true");
             sessionmap.put("id", username);
             // use password as shared secret for DH-EKE key encryption
-            KEY_OBJECT_MAP.put(username, new KeyObject(userpass));
             return ActionSupport.SUCCESS;
         } else {
             logger.debug("Register Failed");
@@ -235,4 +288,5 @@ public class Actions extends ActionSupport implements SessionAware {
     public void setSession(Map<String, Object> map) {
         sessionmap = (SessionMap) map;
     }
+
 }

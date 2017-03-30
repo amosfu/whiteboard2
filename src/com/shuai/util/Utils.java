@@ -1,5 +1,6 @@
 package com.shuai.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.logging.log4j.LogManager;
@@ -8,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import javax.crypto.Cipher;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
 import java.sql.Connection;
@@ -141,5 +143,25 @@ public class Utils {
             sb.append(Integer.toString((salt[i] & 0xff) + 0x100, 16).substring(1));
         }
         return sb.toString();
+    }
+    public static byte[] encodeObjectToJson(Object input) {
+        byte[] json = new byte[]{};
+        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+        try {
+            json = ow.writeValueAsBytes(input);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return json;
+    }
+
+    public static <T> T decodeJsonToObject(byte[] input, Class<T> outputClass) {
+        T output = null;
+        try {
+            output = new ObjectMapper().readValue(input, outputClass);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return output;
     }
 }

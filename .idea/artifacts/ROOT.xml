@@ -3,6 +3,11 @@
     <output-path>$PROJECT_DIR$/out/artifacts/ROOT</output-path>
     <root id="archive" name="ROOT.war">
       <element id="artifact" artifact-name="whiteboard2:war exploded" />
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="lib">
+          <element id="library" level="project" name="commons-codec:commons-codec:1.10" />
+        </element>
+      </element>
     </root>
   </artifact>
 </component>
