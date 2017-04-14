@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="debug">
-    <Appenders>
-        <Console name="STDOUT" target="SYSTEM_OUT">
-            <Layout type="PatternLayout">
-                <Pattern>%C{1}.%M %m %ex%n</Pattern>
-            </Layout>
-        </Console>
-    </Appenders>
-    <Loggers>
-        <Root level="debug">
-            <AppenderRef ref="STDOUT"/>
-        </Root>
-    </Loggers>
+<Appenders>
+    <Console name="STDOUT" target="SYSTEM_OUT">
+        <Layout type="PatternLayout">
+            <Pattern>%C{1}.%M %m %ex%n</Pattern>
+        </Layout>
+    </Console>
+</Appenders>
+<Loggers>
+    <Root level="debug">
+        <AppenderRef ref="STDOUT"/>
+    </Root>
+</Loggers>
 </Configuration>
